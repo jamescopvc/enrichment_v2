@@ -8,16 +8,12 @@
   ],
   "routes": [
     {
-      "src": "/enrich",
-      "dest": "/api.py"
-    },
-    {
-      "src": "/webhook",
-      "dest": "/api.py"
-    },
-    {
-      "src": "/health",
+      "src": "/(.*)",
       "dest": "/api.py"
     }
-  ]
+  ],
+  "env": {
+    "APOLLO_API_KEY": "@apollo-api-key",
+    "OPENAI_API_KEY": "@openai-api-key"
+  }
 }
