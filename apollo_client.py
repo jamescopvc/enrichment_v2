@@ -80,8 +80,8 @@ class ApolloClient:
             logger.info(f"Contacts found: {len(data.get('contacts', []))}")
             logger.info(f"People found: {len(data.get('people', []))}")
             
-            # Apollo returns founders in 'contacts' field, not 'people'
-            founders = data.get('contacts', [])
+            # Apollo returns founders in 'people' field, not 'contacts'
+            founders = data.get('people', [])
             logger.info(f"Found {len(founders)} potential founders")
             
             return founders
