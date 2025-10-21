@@ -95,7 +95,7 @@ class OpenAIClient:
         
         I just came across you guys and wanted to introduce our fund, ScOp Venture Capital - our team all comes from operating backgrounds in software, and we lead pre-seed through Series A rounds in vertical software and AI.
         
-        [Company Name] looks really interesting, I would love to learn more about the business and what you've built.
+        {company_name} looks really interesting, I would love to learn more about the business and what you've built.
         
         Any times work to chat in the next few weeks? {calendly_link}
         
