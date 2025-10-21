@@ -70,10 +70,12 @@ class OpenAIClient:
         
         # Get owner-specific calendly link
         from config import CALENDLY_LINKS
-        calendly_link = CALENDLY_LINKS.get(owner, '')
+        # Extract owner name from email (james@scopvc.com -> james)
+        owner_name = owner.split('@')[0] if '@' in owner else owner
+        calendly_link = CALENDLY_LINKS.get(owner_name, '')
         
         # Get sender name based on owner
-        sender_name = "James" if owner == "james" else "Zi"
+        sender_name = "James" if owner_name == "james" else "Zi"
         
         prompt = f"""
         Generate a personalized outreach email for a venture capital fund (ScOp Venture Capital) to a founder.
@@ -93,11 +95,11 @@ class OpenAIClient:
         
         [Company Name] looks really interesting, I would love to learn more about the business and what you've built.
         
-        Any times work to chat in the next few weeks? [Calendly Link]
+        Any times work to chat in the next few weeks? {calendly_link}
         
         All the best!
         
-        [Sender Name]
+        {sender_name}
         
         Add industry-specific content from these templates:
         - Financial Services: "We have experience with companies in financial services - our portfolio company Rogo raised a $50m Series B from Thrive building a full AI suite for banks and large financial institutions."
