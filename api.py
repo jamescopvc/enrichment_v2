@@ -69,7 +69,7 @@ class handler(BaseHTTPRequestHandler):
                 logger.error(f"Enrichment error: {e}")
                 result = {
                     "status": "error",
-                    "message": "Enrichment service failed"
+                    "message": f"Enrichment service failed: {str(e)}"
                 }
             
             self.send_response(200)
@@ -119,7 +119,7 @@ class handler(BaseHTTPRequestHandler):
                 logger.error(f"Webhook enrichment error: {e}")
                 result = {
                     "status": "error",
-                    "message": "Enrichment service failed"
+                    "message": f"Enrichment service failed: {str(e)}"
                 }
             
             self.send_response(200)
