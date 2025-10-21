@@ -57,19 +57,19 @@ class ApolloClient:
             logger.error(f"Apollo API error for company search: {e}")
             return None
     
-    def search_founders(self, company_id: str) -> List[Dict[str, Any]]:
+    def search_founders(self, domain: str) -> List[Dict[str, Any]]:
         """
         Search for founders at a company using the provided Apollo endpoint
         """
         url = f"{self.base_url}/mixed_people/search"
         payload = {
-            "person_titles": ["Co-Founder", "CEO", "CTO"],
+            "person_titles": ["Co-Founder", "CEO", "CTO", "Founder"],
             "person_locations": [],
             "person_seniorities": [],
-            "q_organization_domains_list": [company_id]
+            "q_organization_domains_list": [domain]
         }
         
-        logger.info(f"Searching for founders at company ID: {company_id}")
+        logger.info(f"Searching for founders at domain: {domain}")
         
         try:
             response = requests.post(url, headers=self.headers, json=payload)
