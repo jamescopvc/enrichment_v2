@@ -65,6 +65,7 @@ class OpenAIClient:
         """
         company_name = company_data.get('name', 'Unknown')
         founder_name = founder_data.get('name', 'Unknown')
+        founder_first_name = founder_data.get('first_name', 'Unknown')
         founder_title = founder_data.get('title', '')
         company_location = company_data.get('location', '')
         
@@ -82,6 +83,7 @@ class OpenAIClient:
         
         Company: {company_name}
         Founder: {founder_name} ({founder_title})
+        Founder First Name: {founder_first_name}
         Industry: {industry}
         Location: {company_location}
         Sender: {sender_name}
@@ -89,7 +91,7 @@ class OpenAIClient:
         
         Use this base template and personalize it:
         
-        Hi [FirstName],
+        Hi {founder_first_name},
         
         I just came across you guys and wanted to introduce our fund, ScOp Venture Capital - our team all comes from operating backgrounds in software, and we lead pre-seed through Series A rounds in vertical software and AI.
         

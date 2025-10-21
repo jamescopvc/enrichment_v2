@@ -81,8 +81,17 @@ class EnrichmentService:
             
             for founder in founders_data:
                 # Extract founder info directly from contacts data
+                full_name = founder.get('name', 'Unknown')
+                
+                # Parse first and last name
+                name_parts = full_name.split(' ', 1) if full_name != 'Unknown' else ['Unknown', '']
+                first_name = name_parts[0] if name_parts else 'Unknown'
+                last_name = name_parts[1] if len(name_parts) > 1 else ''
+                
                 founder_info = {
-                    "name": founder.get('name', 'Unknown'),
+                    "name": full_name,
+                    "first_name": first_name,
+                    "last_name": last_name,
                     "title": founder.get('title', ''),
                     "email": founder.get('email', ''),
                     "linkedin": founder.get('linkedin_url', '')
