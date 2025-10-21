@@ -1,181 +1,147 @@
+from http.server import BaseHTTPRequestHandler
 import json
-import logging
-import os
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
-def handler(request):
-    """Vercel serverless handler"""
-    try:
-        # Get request details
-        method = request.get('method', 'GET')
-        path = request.get('path', '/')
-        body = request.get('body', '{}')
-        
-        # Parse JSON body
-        try:
-            data = json.loads(body) if body else {}
-        except:
-            data = {}
-        
-        # Route requests
-        if path == '/enrich' and method == 'POST':
-            return handle_enrich(data)
-        elif path == '/webhook' and method == 'POST':
-            return handle_webhook(data)
-        elif path == '/health' and method == 'GET':
-            return handle_health()
+class handler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        if self.path == '/health':
+            self.send_response(200)
+            self.send_header('Content-type', 'application/json')
+            self.end_headers()
+            response = {"status": "healthy", "message": "Company enrichment API is running"}
+            self.wfile.write(json.dumps(response).encode())
         else:
-            return {
-                "statusCode": 404,
-                "headers": {"Content-Type": "application/json"},
-                "body": json.dumps({"status": "error", "message": "Endpoint not found"})
+            self.send_response(404)
+            self.send_header('Content-type', 'application/json')
+            self.end_headers()
+            response = {"status": "error", "message": "Endpoint not found"}
+            self.wfile.write(json.dumps(response).encode())
+    
+    def do_POST(self):
+        if self.path == '/enrich':
+            self.handle_enrich()
+        elif self.path == '/webhook':
+            self.handle_webhook()
+        else:
+            self.send_response(404)
+            self.send_header('Content-type', 'application/json')
+            self.end_headers()
+            response = {"status": "error", "message": "Endpoint not found"}
+            self.wfile.write(json.dumps(response).encode())
+    
+    def handle_enrich(self):
+        try:
+            content_length = int(self.headers['Content-Length'])
+            post_data = self.rfile.read(content_length)
+            data = json.loads(post_data.decode('utf-8'))
+            
+            domain = data.get('domain')
+            list_source = data.get('list_source')
+            
+            if not domain:
+                self.send_response(400)
+                self.send_header('Content-type', 'application/json')
+                self.end_headers()
+                response = {"status": "error", "message": "Domain is required"}
+                self.wfile.write(json.dumps(response).encode())
+                return
+            
+            if not list_source:
+                self.send_response(400)
+                self.send_header('Content-type', 'application/json')
+                self.end_headers()
+                response = {"status": "error", "message": "List source is required"}
+                self.wfile.write(json.dumps(response).encode())
+                return
+            
+            # Mock response
+            result = {
+                "status": "enriched",
+                "company": {
+                    "name": "Test Company",
+                    "domain": domain,
+                    "industry": "Technology",
+                    "location": "San Francisco, CA",
+                    "employee_count": 100,
+                    "linkedin": "https://linkedin.com/company/test"
+                },
+                "founders": [
+                    {
+                        "name": "Test Founder",
+                        "title": "CEO & Founder",
+                        "email": "founder@test.com",
+                        "linkedin": "https://linkedin.com/in/test"
+                    }
+                ],
+                "owner": "james@scopvc.com"
             }
             
-    except Exception as e:
-        logger.error(f"Handler error: {e}")
-        return {
-            "statusCode": 500,
-            "headers": {"Content-Type": "application/json"},
-            "body": json.dumps({"status": "error", "message": "Internal server error"})
-        }
-
-def handle_enrich(data):
-    """Handle enrichment requests"""
-    try:
-        if not data:
-            return {
-                "statusCode": 400,
-                "headers": {"Content-Type": "application/json"},
-                "body": json.dumps({"status": "error", "message": "No JSON data provided"})
+            self.send_response(200)
+            self.send_header('Content-type', 'application/json')
+            self.end_headers()
+            self.wfile.write(json.dumps(result).encode())
+            
+        except Exception as e:
+            self.send_response(500)
+            self.send_header('Content-type', 'application/json')
+            self.end_headers()
+            response = {"status": "error", "message": "Internal server error"}
+            self.wfile.write(json.dumps(response).encode())
+    
+    def handle_webhook(self):
+        try:
+            content_length = int(self.headers['Content-Length'])
+            post_data = self.rfile.read(content_length)
+            data = json.loads(post_data.decode('utf-8'))
+            
+            domain = data.get('domain')
+            list_source = data.get('list_source')
+            
+            if not domain:
+                self.send_response(400)
+                self.send_header('Content-type', 'application/json')
+                self.end_headers()
+                response = {"status": "error", "message": "Domain is required"}
+                self.wfile.write(json.dumps(response).encode())
+                return
+            
+            if not list_source:
+                self.send_response(400)
+                self.send_header('Content-type', 'application/json')
+                self.end_headers()
+                response = {"status": "error", "message": "List source is required"}
+                self.wfile.write(json.dumps(response).encode())
+                return
+            
+            # Mock response
+            result = {
+                "status": "enriched",
+                "company": {
+                    "name": "Test Company",
+                    "domain": domain,
+                    "industry": "Technology",
+                    "location": "San Francisco, CA",
+                    "employee_count": 100,
+                    "linkedin": "https://linkedin.com/company/test"
+                },
+                "founders": [
+                    {
+                        "name": "Test Founder",
+                        "title": "CEO & Founder",
+                        "email": "founder@test.com",
+                        "linkedin": "https://linkedin.com/in/test"
+                    }
+                ],
+                "owner": "zi@scopvc.com"
             }
-        
-        domain = data.get('domain')
-        list_source = data.get('list_source')
-        
-        if not domain:
-            return {
-                "statusCode": 400,
-                "headers": {"Content-Type": "application/json"},
-                "body": json.dumps({"status": "error", "message": "Domain is required"})
-            }
-        
-        if not list_source:
-            return {
-                "statusCode": 400,
-                "headers": {"Content-Type": "application/json"},
-                "body": json.dumps({"status": "error", "message": "List source is required"})
-            }
-        
-        logger.info(f"Enrichment request: domain={domain}, list_source={list_source}")
-        
-        # Mock response for testing
-        result = {
-            "status": "enriched",
-            "company": {
-                "name": "Test Company",
-                "domain": domain,
-                "industry": "Technology",
-                "location": "San Francisco, CA",
-                "employee_count": 100,
-                "linkedin": "https://linkedin.com/company/test"
-            },
-            "founders": [
-                {
-                    "name": "Test Founder",
-                    "title": "CEO & Founder",
-                    "email": "founder@test.com",
-                    "linkedin": "https://linkedin.com/in/test"
-                }
-            ],
-            "owner": "james@scopvc.com"
-        }
-        
-        return {
-            "statusCode": 200,
-            "headers": {"Content-Type": "application/json"},
-            "body": json.dumps(result)
-        }
-        
-    except Exception as e:
-        logger.error(f"Enrich error: {e}")
-        return {
-            "statusCode": 500,
-            "headers": {"Content-Type": "application/json"},
-            "body": json.dumps({"status": "error", "message": "Internal server error"})
-        }
-
-def handle_webhook(data):
-    """Handle webhook requests"""
-    try:
-        if not data:
-            return {
-                "statusCode": 400,
-                "headers": {"Content-Type": "application/json"},
-                "body": json.dumps({"status": "error", "message": "No JSON data provided"})
-            }
-        
-        domain = data.get('domain')
-        list_source = data.get('list_source')
-        
-        if not domain:
-            return {
-                "statusCode": 400,
-                "headers": {"Content-Type": "application/json"},
-                "body": json.dumps({"status": "error", "message": "Domain is required"})
-            }
-        
-        if not list_source:
-            return {
-                "statusCode": 400,
-                "headers": {"Content-Type": "application/json"},
-                "body": json.dumps({"status": "error", "message": "List source is required"})
-            }
-        
-        logger.info(f"Webhook request: domain={domain}, list_source={list_source}")
-        
-        # Mock response for testing
-        result = {
-            "status": "enriched",
-            "company": {
-                "name": "Test Company",
-                "domain": domain,
-                "industry": "Technology",
-                "location": "San Francisco, CA",
-                "employee_count": 100,
-                "linkedin": "https://linkedin.com/company/test"
-            },
-            "founders": [
-                {
-                    "name": "Test Founder",
-                    "title": "CEO & Founder",
-                    "email": "founder@test.com",
-                    "linkedin": "https://linkedin.com/in/test"
-                }
-            ],
-            "owner": "zi@scopvc.com"
-        }
-        
-        return {
-            "statusCode": 200,
-            "headers": {"Content-Type": "application/json"},
-            "body": json.dumps(result)
-        }
-        
-    except Exception as e:
-        logger.error(f"Webhook error: {e}")
-        return {
-            "statusCode": 500,
-            "headers": {"Content-Type": "application/json"},
-            "body": json.dumps({"status": "error", "message": "Internal server error"})
-        }
-
-def handle_health():
-    """Handle health check requests"""
-    return {
-        "statusCode": 200,
-        "headers": {"Content-Type": "application/json"},
-        "body": json.dumps({"status": "healthy", "message": "Company enrichment API is running"})
-    }
+            
+            self.send_response(200)
+            self.send_header('Content-type', 'application/json')
+            self.end_headers()
+            self.wfile.write(json.dumps(result).encode())
+            
+        except Exception as e:
+            self.send_response(500)
+            self.send_header('Content-type', 'application/json')
+            self.end_headers()
+            response = {"status": "error", "message": "Internal server error"}
+            self.wfile.write(json.dumps(response).encode())
