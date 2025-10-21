@@ -1,0 +1,27 @@
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "api.py",
+      "use": "@vercel/python"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/enrich",
+      "dest": "/api.py"
+    },
+    {
+      "src": "/webhook", 
+      "dest": "/api.py"
+    },
+    {
+      "src": "/health",
+      "dest": "/api.py"
+    }
+  ],
+  "env": {
+    "APOLLO_API_KEY": "@apollo-api-key",
+    "OPENAI_API_KEY": "@openai-api-key"
+  }
+}
