@@ -19,9 +19,5 @@
       "src": "/health",
       "dest": "/api.py"
     }
-  ],
-  "env": {
-    "APOLLO_API_KEY": "@apollo-api-key",
-    "OPENAI_API_KEY": "@openai-api-key"
-  }
+  ]
 }
