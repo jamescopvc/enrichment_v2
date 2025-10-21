@@ -26,9 +26,13 @@ class ApolloClient:
         }
         
         logger.info(f"Searching for company with domain: {domain}")
+        logger.info(f"Apollo API Key: {self.api_key[:10]}..." if self.api_key else "NOT SET")
+        logger.info(f"Request URL: {url}")
+        logger.info(f"Request payload: {payload}")
         
         try:
             response = requests.post(url, headers=self.headers, json=payload)
+            logger.info(f"Response status: {response.status_code}")
             response.raise_for_status()
             
             data = response.json()
