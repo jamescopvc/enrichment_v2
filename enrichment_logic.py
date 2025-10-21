@@ -80,30 +80,26 @@ class EnrichmentService:
             logger.info(f"Found {len(founders_data)} potential founders")
             
             for founder in founders_data:
-                # Enrich each founder
-                founder_id = founder.get('id')
-                if founder_id:
-                    enriched_founder = self.apollo_client.enrich_person(founder_id)
-                    if enriched_founder:
-                        founder_info = {
-                            "name": enriched_founder.get('name', 'Unknown'),
-                            "title": enriched_founder.get('title', ''),
-                            "email": enriched_founder.get('email', ''),
-                            "linkedin": enriched_founder.get('linkedin_url', '')
-                        }
-                        
-                        # Generate personalized email
-                        if founder_info['email']:
-                            logger.info(f"Generating email for founder: {founder_info['name']}")
-                            if self.openai_client is None:
-                                self.openai_client = OpenAIClient()
-                            email_content = self.openai_client.generate_email(
-                                company_info, founder_info, classified_industry, owner
-                            )
-                            founder_info['generated_email'] = email_content
-                        
-                        founders.append(founder_info)
-                        logger.info(f"Added founder: {founder_info['name']} ({founder_info['title']})")
+                # Extract founder info directly from contacts data
+                founder_info = {
+                    "name": founder.get('name', 'Unknown'),
+                    "title": founder.get('title', ''),
+                    "email": founder.get('email', ''),
+                    "linkedin": founder.get('linkedin_url', '')
+                }
+                
+                # Generate personalized email
+                if founder_info['email']:
+                    logger.info(f"Generating email for founder: {founder_info['name']}")
+                    if self.openai_client is None:
+                        self.openai_client = OpenAIClient()
+                    email_content = self.openai_client.generate_email(
+                        company_info, founder_info, classified_industry, owner
+                    )
+                    founder_info['generated_email'] = email_content
+                
+                founders.append(founder_info)
+                logger.info(f"Added founder: {founder_info['name']} ({founder_info['title']})")
         
         # Determine status
         if founders and any(f.get('email') for f in founders):
