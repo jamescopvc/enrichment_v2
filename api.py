@@ -1,5 +1,11 @@
 from http.server import BaseHTTPRequestHandler
 import json
+import logging
+from enrichment_logic import EnrichmentService
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 class handler(BaseHTTPRequestHandler):
     def do_GET(self):
@@ -53,27 +59,18 @@ class handler(BaseHTTPRequestHandler):
                 self.wfile.write(json.dumps(response).encode())
                 return
             
-            # Mock response
-            result = {
-                "status": "enriched",
-                "company": {
-                    "name": "Test Company",
-                    "domain": domain,
-                    "industry": "Technology",
-                    "location": "San Francisco, CA",
-                    "employee_count": 100,
-                    "linkedin": "https://linkedin.com/company/test"
-                },
-                "founders": [
-                    {
-                        "name": "Test Founder",
-                        "title": "CEO & Founder",
-                        "email": "founder@test.com",
-                        "linkedin": "https://linkedin.com/in/test"
-                    }
-                ],
-                "owner": "james@scopvc.com"
-            }
+            # Real Apollo API integration
+            logger.info(f"Enrichment request: domain={domain}, list_source={list_source}")
+            
+            try:
+                enrichment_service = EnrichmentService()
+                result = enrichment_service.enrich_company(domain, list_source)
+            except Exception as e:
+                logger.error(f"Enrichment error: {e}")
+                result = {
+                    "status": "error",
+                    "message": "Enrichment service failed"
+                }
             
             self.send_response(200)
             self.send_header('Content-type', 'application/json')
@@ -112,27 +109,18 @@ class handler(BaseHTTPRequestHandler):
                 self.wfile.write(json.dumps(response).encode())
                 return
             
-            # Mock response
-            result = {
-                "status": "enriched",
-                "company": {
-                    "name": "Test Company",
-                    "domain": domain,
-                    "industry": "Technology",
-                    "location": "San Francisco, CA",
-                    "employee_count": 100,
-                    "linkedin": "https://linkedin.com/company/test"
-                },
-                "founders": [
-                    {
-                        "name": "Test Founder",
-                        "title": "CEO & Founder",
-                        "email": "founder@test.com",
-                        "linkedin": "https://linkedin.com/in/test"
-                    }
-                ],
-                "owner": "zi@scopvc.com"
-            }
+            # Real Apollo API integration
+            logger.info(f"Webhook request: domain={domain}, list_source={list_source}")
+            
+            try:
+                enrichment_service = EnrichmentService()
+                result = enrichment_service.enrich_company(domain, list_source)
+            except Exception as e:
+                logger.error(f"Webhook enrichment error: {e}")
+                result = {
+                    "status": "error",
+                    "message": "Enrichment service failed"
+                }
             
             self.send_response(200)
             self.send_header('Content-type', 'application/json')
