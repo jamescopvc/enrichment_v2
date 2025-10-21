@@ -7,7 +7,11 @@ logger = logging.getLogger(__name__)
 
 class OpenAIClient:
     def __init__(self):
-        self.client = openai.OpenAI(api_key=OPENAI_API_KEY)
+        # Initialize OpenAI client with explicit parameters to avoid compatibility issues
+        self.client = openai.OpenAI(
+            api_key=OPENAI_API_KEY,
+            timeout=30.0
+        )
     
     def classify_industry(self, company_data: Dict[str, Any]) -> str:
         """

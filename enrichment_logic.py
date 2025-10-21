@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 class EnrichmentService:
     def __init__(self):
         self.apollo_client = ApolloClient()
-        self.openai_client = OpenAIClient()
+        self.openai_client = None  # Initialize lazily to avoid compatibility issues
     
     def validate_list_source(self, list_source: str) -> Tuple[bool, Optional[str]]:
         """
@@ -66,6 +66,8 @@ class EnrichmentService:
         
         # Classify industry using AI
         logger.info("Classifying industry using AI")
+        if self.openai_client is None:
+            self.openai_client = OpenAIClient()
         classified_industry = self.openai_client.classify_industry(company_data)
         company_info['industry'] = classified_industry
         
@@ -93,6 +95,8 @@ class EnrichmentService:
                         # Generate personalized email
                         if founder_info['email']:
                             logger.info(f"Generating email for founder: {founder_info['name']}")
+                            if self.openai_client is None:
+                                self.openai_client = OpenAIClient()
                             email_content = self.openai_client.generate_email(
                                 company_info, founder_info, classified_industry, owner
                             )
