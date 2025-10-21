@@ -1,6 +1,6 @@
 import json
 import logging
-from enrichment_logic import EnrichmentService
+import os
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -71,11 +71,27 @@ def handle_enrich(data):
         
         logger.info(f"Enrichment request: domain={domain}, list_source={list_source}")
         
-        # Initialize enrichment service
-        enrichment_service = EnrichmentService()
-        
-        # Perform enrichment
-        result = enrichment_service.enrich_company(domain, list_source)
+        # Mock response for testing
+        result = {
+            "status": "enriched",
+            "company": {
+                "name": "Test Company",
+                "domain": domain,
+                "industry": "Technology",
+                "location": "San Francisco, CA",
+                "employee_count": 100,
+                "linkedin": "https://linkedin.com/company/test"
+            },
+            "founders": [
+                {
+                    "name": "Test Founder",
+                    "title": "CEO & Founder",
+                    "email": "founder@test.com",
+                    "linkedin": "https://linkedin.com/in/test"
+                }
+            ],
+            "owner": "james@scopvc.com"
+        }
         
         return {
             "statusCode": 200,
@@ -120,11 +136,27 @@ def handle_webhook(data):
         
         logger.info(f"Webhook request: domain={domain}, list_source={list_source}")
         
-        # Initialize enrichment service
-        enrichment_service = EnrichmentService()
-        
-        # Perform enrichment
-        result = enrichment_service.enrich_company(domain, list_source)
+        # Mock response for testing
+        result = {
+            "status": "enriched",
+            "company": {
+                "name": "Test Company",
+                "domain": domain,
+                "industry": "Technology",
+                "location": "San Francisco, CA",
+                "employee_count": 100,
+                "linkedin": "https://linkedin.com/company/test"
+            },
+            "founders": [
+                {
+                    "name": "Test Founder",
+                    "title": "CEO & Founder",
+                    "email": "founder@test.com",
+                    "linkedin": "https://linkedin.com/in/test"
+                }
+            ],
+            "owner": "zi@scopvc.com"
+        }
         
         return {
             "statusCode": 200,
