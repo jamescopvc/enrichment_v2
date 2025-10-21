@@ -111,5 +111,12 @@ def health_check():
         "message": "Company enrichment API is running"
     })
 
+# Vercel handler
+def handler(request):
+    return app(request.environ, start_response)
+
+def start_response(status, headers):
+    pass
+
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)
