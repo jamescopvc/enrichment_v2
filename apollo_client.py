@@ -36,11 +36,18 @@ class ApolloClient:
             response.raise_for_status()
             
             data = response.json()
-            logger.info(f"Apollo company search response: {data}")
+            logger.info(f"Apollo company search response keys: {list(data.keys())}")
+            logger.info(f"Organizations found: {len(data.get('organizations', []))}")
+            logger.info(f"Accounts found: {len(data.get('accounts', []))}")
             
+            # Check both organizations and accounts fields
             if data.get('organizations') and len(data['organizations']) > 0:
                 company = data['organizations'][0]
-                logger.info(f"Found company: {company.get('name', 'Unknown')} (ID: {company.get('id')})")
+                logger.info(f"Found company in organizations: {company.get('name', 'Unknown')} (ID: {company.get('id')})")
+                return company
+            elif data.get('accounts') and len(data['accounts']) > 0:
+                company = data['accounts'][0]
+                logger.info(f"Found company in accounts: {company.get('name', 'Unknown')} (ID: {company.get('id')})")
                 return company
             else:
                 logger.warning(f"No company found for domain: {domain}")
