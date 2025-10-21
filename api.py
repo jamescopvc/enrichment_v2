@@ -113,10 +113,7 @@ def health_check():
 
 # Vercel handler
 def handler(request):
-    return app(request.environ, start_response)
-
-def start_response(status, headers):
-    pass
+    return app(request.environ, lambda status, headers: None)
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)
