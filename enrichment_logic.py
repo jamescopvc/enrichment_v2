@@ -80,7 +80,7 @@ class EnrichmentService:
             logger.info(f"Found {len(founders_data)} potential founders")
             
             for founder in founders_data:
-                # Extract founder info directly from people data
+                # Extract founder info directly from contacts data
                 full_name = founder.get('name', 'Unknown')
                 
                 # Parse first and last name
