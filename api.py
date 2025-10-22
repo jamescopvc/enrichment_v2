@@ -59,7 +59,6 @@ class handler(BaseHTTPRequestHandler):
                 self.wfile.write(json.dumps(response).encode())
                 return
             
-            # Real Apollo API integration
             logger.info(f"Enrichment request: domain={domain}, list_source={list_source}")
             
             try:
@@ -109,7 +108,6 @@ class handler(BaseHTTPRequestHandler):
                 self.wfile.write(json.dumps(response).encode())
                 return
             
-            # Real Apollo API integration
             logger.info(f"Webhook request: domain={domain}, list_source={list_source}")
             
             try:

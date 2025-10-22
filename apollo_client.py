@@ -1,6 +1,6 @@
 import requests
 import logging
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Any, Optional
 from config import APOLLO_API_KEY, APOLLO_BASE_URL
 
 logger = logging.getLogger(__name__)
@@ -10,77 +10,67 @@ class ApolloClient:
         self.api_key = APOLLO_API_KEY
         self.base_url = APOLLO_BASE_URL
         self.headers = {
+            'accept': 'application/json',
             'Cache-Control': 'no-cache',
             'Content-Type': 'application/json',
-            'accept': 'application/json',
             'x-api-key': self.api_key
         }
     
-    def search_company_by_domain(self, domain: str) -> Optional[Dict[str, Any]]:
+    def get_company_by_domain(self, domain: str) -> Optional[Dict[str, Any]]:
         """
-        Search for company by domain using Apollo API
+        Step 0: Get company info by domain
         """
-        url = f"{self.base_url}/mixed_companies/search"
-        payload = {
-            "q_organization_domains": domain
-        }
+        url = f"{self.base_url}/organizations/enrich?domain={domain}"
         
-        logger.info(f"Searching for company with domain: {domain}")
-        logger.info(f"Apollo API Key: {self.api_key[:10]}..." if self.api_key else "NOT SET")
-        logger.info(f"Request URL: {url}")
-        logger.info(f"Request payload: {payload}")
+        logger.info(f"Step 0: Getting company info for domain: {domain}")
         
         try:
-            response = requests.post(url, headers=self.headers, json=payload)
-            logger.info(f"Response status: {response.status_code}")
+            response = requests.get(url, headers=self.headers)
             response.raise_for_status()
             
             data = response.json()
-            logger.info(f"Apollo company search response keys: {list(data.keys())}")
-            logger.info(f"Organizations found: {len(data.get('organizations', []))}")
-            logger.info(f"Accounts found: {len(data.get('accounts', []))}")
+            # Extract from nested organization object
+            org = data.get('organization', data)
             
-            # Check both organizations and accounts fields
-            if data.get('organizations') and len(data['organizations']) > 0:
-                company = data['organizations'][0]
-                logger.info(f"Found company in organizations: {company.get('name', 'Unknown')} (ID: {company.get('id')})")
-                return company
-            elif data.get('accounts') and len(data['accounts']) > 0:
-                company = data['accounts'][0]
-                logger.info(f"Found company in accounts: {company.get('name', 'Unknown')} (ID: {company.get('id')})")
-                return company
-            else:
-                logger.warning(f"No company found for domain: {domain}")
-                return None
-                
+            company_data = {
+                'id': org.get('id'),
+                'name': org.get('name', 'Unknown'),
+                'domain': org.get('primary_domain', domain),
+                'description': org.get('short_description', org.get('description', '')),
+                'short_description': org.get('short_description', ''),
+                'keywords': org.get('keywords', []),
+                'industry': org.get('industry', 'Unknown'),
+                'location': f"{org.get('city', 'Unknown')}, {org.get('state', '')}".strip(),
+                'employee_count': org.get('estimated_num_employees', 0),
+                'linkedin_url': org.get('linkedin_url', ''),
+                'website_url': org.get('website_url', ''),
+                'founded_year': org.get('founded_year')
+            }
+            
+            logger.info(f"Company data retrieved: {company_data['name']}")
+            return company_data
+            
         except requests.exceptions.RequestException as e:
             logger.error(f"Apollo API error for company search: {e}")
             return None
     
     def search_founders(self, domain: str) -> List[Dict[str, Any]]:
         """
-        Search for founders at a company using the provided Apollo endpoint
+        Step 1: Search for founders by domain and titles
         """
         url = f"{self.base_url}/mixed_people/search"
         payload = {
-            "person_titles": ["Co-Founder", "CEO", "CTO", "Founder"],
-            "person_locations": [],
-            "person_seniorities": [],
+            "person_titles": ["CEO", "CTO", "Co-Founder"],
             "q_organization_domains_list": [domain]
         }
         
-        logger.info(f"Searching for founders at domain: {domain}")
+        logger.info(f"Step 1: Searching for founders at domain: {domain}")
         
         try:
             response = requests.post(url, headers=self.headers, json=payload)
             response.raise_for_status()
             
             data = response.json()
-            logger.info(f"Apollo founders search response keys: {list(data.keys())}")
-            logger.info(f"Contacts found: {len(data.get('contacts', []))}")
-            logger.info(f"People found: {len(data.get('people', []))}")
-            
-            # Apollo returns founders in 'contacts' field, not 'people'
             founders = data.get('contacts', [])
             logger.info(f"Found {len(founders)} potential founders")
             
@@ -92,23 +82,24 @@ class ApolloClient:
     
     def enrich_person(self, person_id: str) -> Optional[Dict[str, Any]]:
         """
-        Get detailed person information including email
+        Step 2: Enrich individual person by person_id
         """
         url = f"{self.base_url}/people/match"
         payload = {
-            "person_id": person_id
+            "id": person_id,
+            "reveal_personal_emails": False,
+            "reveal_phone_number": False
         }
         
-        logger.info(f"Enriching person with ID: {person_id}")
+        logger.info(f"Step 2: Enriching person with ID: {person_id}")
         
         try:
             response = requests.post(url, headers=self.headers, json=payload)
             response.raise_for_status()
             
             data = response.json()
-            logger.info(f"Apollo person enrichment response: {data}")
-            
-            return data.get('person')
+            logger.info(f"Person enriched: {data.get('name', 'Unknown')}")
+            return data
             
         except requests.exceptions.RequestException as e:
             logger.error(f"Apollo API error for person enrichment: {e}")
