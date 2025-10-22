@@ -87,7 +87,7 @@ class ApolloClient:
     
     def enrich_person(self, person_id: str) -> Optional[Dict[str, Any]]:
         """
-        Step 2: Enrich individual person by person_id
+        Step 2: Enrich individual person by person_id to unlock email
         """
         url = f"{self.base_url}/people/match"
         payload = {
@@ -103,8 +103,16 @@ class ApolloClient:
             response.raise_for_status()
             
             data = response.json()
-            logger.info(f"Person enriched: {data.get('name', 'Unknown')}")
-            return data
+            # Extract person object from response
+            person = data.get('person')
+            
+            if person:
+                logger.info(f"Person enriched: {person.get('name', 'Unknown')}")
+                logger.info(f"  Email unlocked: {person.get('email', 'N/A')}")
+                return person
+            else:
+                logger.warning(f"No person data in enrichment response")
+                return None
             
         except requests.exceptions.RequestException as e:
             logger.error(f"Apollo API error for person enrichment: {e}")
