@@ -71,7 +71,12 @@ class ApolloClient:
             response.raise_for_status()
             
             data = response.json()
+            
+            # Apollo returns founders in EITHER 'contacts' or 'people' field
             founders = data.get('contacts', [])
+            if not founders:
+                founders = data.get('people', [])
+            
             logger.info(f"Found {len(founders)} potential founders")
             
             return founders
