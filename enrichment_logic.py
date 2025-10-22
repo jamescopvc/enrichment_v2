@@ -83,7 +83,8 @@ class EnrichmentService:
                 first_name = name_parts[0] if name_parts else 'Unknown'
                 last_name = name_parts[1] if len(name_parts) > 1 else ''
                 email = founder.get('email', '')
-                person_id = founder.get('id')
+                # Handle both contacts (person_id) and people (id) structures
+                person_id = founder.get('person_id') or founder.get('id')
                 
                 logger.info(f"  [{i}] {full_name} ({founder.get('title', '')}) - Email: {email}")
                 

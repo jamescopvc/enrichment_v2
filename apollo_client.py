@@ -72,12 +72,22 @@ class ApolloClient:
             
             data = response.json()
             
-            # Apollo returns founders in EITHER 'contacts' or 'people' field
-            founders = data.get('contacts', [])
-            if not founders:
-                founders = data.get('people', [])
+            # Apollo returns founders in BOTH 'contacts' and 'people' arrays
+            founders = []
             
-            logger.info(f"Found {len(founders)} potential founders")
+            # Add contacts first (these usually have emails already)
+            contacts = data.get('contacts', [])
+            if contacts:
+                logger.info(f"Found {len(contacts)} contacts")
+                founders.extend(contacts)
+            
+            # Add people (may need email enrichment)
+            people = data.get('people', [])
+            if people:
+                logger.info(f"Found {len(people)} people")
+                founders.extend(people)
+            
+            logger.info(f"Total founders found: {len(founders)}")
             
             return founders
             
