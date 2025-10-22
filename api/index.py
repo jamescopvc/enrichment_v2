@@ -26,9 +26,14 @@ def handler(request):
     Main API handler for Vercel
     """
     try:
-        # Get the path to determine which endpoint to call
-        path = request.get('path', '')
-        method = request.get('method', 'GET')
+        # Handle both dict and object request formats
+        if isinstance(request, dict):
+            path = request.get('path', '/')
+            method = request.get('method', 'GET').upper()
+        else:
+            # Handle object-like request (e.g., from Starlette/FastAPI)
+            path = getattr(request, 'path', '/')
+            method = getattr(request, 'method', 'GET').upper()
         
         # Route to appropriate handler
         if path == '/enrich' and method == 'POST':
