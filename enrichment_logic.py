@@ -30,32 +30,33 @@ class EnrichmentService:
         """
         Main enrichment pipeline
         """
-        logger.info(f"Starting enrichment for domain: {domain}, list_source: {list_source}")
+        logger.info(f"🚀 Starting enrichment: {domain} ({list_source})")
         
         # Validate list source
         is_valid, owner = self.validate_list_source(list_source)
         if not is_valid:
-            return {
-                "status": "failed",
-                "message": "Invalid list source"
-            }
+            logger.error("❌ Invalid list source")
+            return {"status": "failed", "message": "Invalid list source"}
+        
+        logger.info(f"✅ Owner: {owner}")
         
         # Step 0: Get company info
-        logger.info("Step 0: Getting company information")
+        logger.info("📍 Step 0: Company enrichment")
         company_data = self.apollo_client.get_company_by_domain(domain)
         if not company_data:
-            return {
-                "status": "failed",
-                "message": "Company not found"
-            }
+            logger.error("❌ Company not found")
+            return {"status": "failed", "message": "Company not found"}
+        
+        logger.info(f"✅ Company: {company_data['name']}")
         
         # Initialize OpenAI client
         if self.openai_client is None:
             self.openai_client = OpenAIClient()
         
         # Classify industry
-        logger.info("Classifying industry")
+        logger.info("🤖 Analyzing vertical...")
         industry = self.openai_client.classify_industry(company_data)
+        logger.info(f"✅ Vertical: {industry}")
         
         # Prepare company info
         company_info = {
@@ -68,81 +69,60 @@ class EnrichmentService:
             "description": company_data.get('description', '')
         }
         
-        logger.info(f"Company: {company_info['name']} ({industry})")
-        
         # Step 1: Search for founders
-        logger.info("Step 1: Searching for founders")
+        logger.info("👥 Step 1: Founder search")
         founders_data = self.apollo_client.search_founders(domain)
+        logger.info(f"📊 Found {len(founders_data)} potential founders")
         
         founders = []
         if founders_data:
-            logger.info(f"Found {len(founders_data)} potential founders")
-            
-            for founder in founders_data:
-                # Extract founder info
+            for i, founder in enumerate(founders_data, 1):
                 full_name = founder.get('name', 'Unknown')
                 name_parts = full_name.split(' ', 1) if full_name != 'Unknown' else ['Unknown', '']
                 first_name = name_parts[0] if name_parts else 'Unknown'
                 last_name = name_parts[1] if len(name_parts) > 1 else ''
+                email = founder.get('email', '')
+                person_id = founder.get('id')
                 
-                founder_info = {
-                    "name": full_name,
-                    "first_name": first_name,
-                    "last_name": last_name,
-                    "title": founder.get('title', ''),
-                    "email": founder.get('email', ''),
-                    "linkedin": founder.get('linkedin_url', '')
-                }
+                logger.info(f"  [{i}] {full_name} ({founder.get('title', '')}) - Email: {email}")
                 
-                # Check if email is available
-                if founder_info['email'] and founder_info['email'] != 'email_not_unlocked@domain.com':
-                    logger.info(f"Founder {founder_info['name']} has email: {founder_info['email']}")
-                    
-                    # Generate personalized email
-                    email_content = self.openai_client.generate_email(
-                        company_info, founder_info, industry, owner
+                # Check if email is unlocked
+                if email and email != 'email_not_unlocked@domain.com':
+                    logger.info(f"      ✅ Email available")
+                    self._add_founder_to_list(
+                        founders, full_name, first_name, last_name,
+                        founder.get('title', ''), email,
+                        founder.get('linkedin_url', ''),
+                        company_info, industry, owner
                     )
-                    founder_info['generated_email'] = email_content
-                    
-                    founders.append(founder_info)
-                    logger.info(f"Added founder: {founder_info['name']} ({founder_info['title']})")
-                
                 else:
-                    logger.info(f"Founder {founder_info['name']} needs enrichment - email: {founder_info['email']}")
-                    
-                    # Step 2: Enrich person if needed
-                    person_id = founder.get('person_id')
+                    # Step 2: Try to enrich person if we have ID
+                    logger.info(f"      🔓 Email locked, attempting enrichment...")
                     if person_id:
-                        logger.info(f"Step 2: Enriching person {founder_info['name']} with ID: {person_id}")
-                        enriched_person = self.apollo_client.enrich_person(person_id)
-                        
-                        if enriched_person and enriched_person.get('email'):
-                            founder_info['email'] = enriched_person.get('email')
-                            logger.info(f"Enriched email for {founder_info['name']}: {founder_info['email']}")
-                            
-                            # Generate email
-                            email_content = self.openai_client.generate_email(
-                                company_info, founder_info, industry, owner
+                        enriched = self.apollo_client.enrich_person(person_id)
+                        if enriched and enriched.get('email') and enriched.get('email') != 'email_not_unlocked@domain.com':
+                            logger.info(f"      ✅ Enriched email: {enriched.get('email')}")
+                            self._add_founder_to_list(
+                                founders, full_name, first_name, last_name,
+                                founder.get('title', ''), enriched.get('email'),
+                                founder.get('linkedin_url', ''),
+                                company_info, industry, owner
                             )
-                            founder_info['generated_email'] = email_content
-                            
-                            founders.append(founder_info)
-                            logger.info(f"Added enriched founder: {founder_info['name']} ({founder_info['title']})")
                         else:
-                            logger.warning(f"Could not enrich email for {founder_info['name']}")
+                            logger.warning(f"      ❌ Enrichment failed or no email")
                     else:
-                        logger.warning(f"No person_id for {founder_info['name']}")
+                        logger.warning(f"      ❌ No person ID to enrich")
         
         # Determine status
         if founders and any(f.get('email') for f in founders):
             status = "enriched"
-            logger.info("Status: enriched - Found company and founders with emails")
+            logger.info(f"✅ Status: enriched - {len(founders)} founders with emails")
         elif founders:
             status = "partial"
-            logger.info("Status: partial - Found company and founders but no emails")
+            logger.info(f"⚠️  Status: partial - {len(founders)} founders but no emails")
         else:
             status = "failed"
-            logger.info("Status: failed - No founders found")
+            logger.error("❌ Status: failed - No founders found")
         
         return {
             "status": status,
@@ -150,3 +130,27 @@ class EnrichmentService:
             "founders": founders,
             "owner": owner
         }
+    
+    def _add_founder_to_list(self, founders_list, full_name, first_name, last_name,
+                            title, email, linkedin, company_info, industry, owner):
+        """
+        Helper to add a founder with generated email to the list
+        """
+        founder_info = {
+            "name": full_name,
+            "first_name": first_name,
+            "last_name": last_name,
+            "title": title,
+            "email": email,
+            "linkedin": linkedin
+        }
+        
+        # Generate personalized email
+        logger.info(f"      ✉️  Generating email...")
+        email_content = self.openai_client.generate_email(
+            company_info, founder_info, industry, owner
+        )
+        founder_info['generated_email'] = email_content
+        
+        founders_list.append(founder_info)
+        logger.info(f"      ➕ Added to list")
