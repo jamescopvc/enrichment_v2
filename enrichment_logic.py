@@ -17,8 +17,9 @@ class EnrichmentService:
         """
         logger.info(f"Validating list source: {list_source}")
         
+        list_source_lower = list_source.lower()
         for valid_source in VALID_LIST_SOURCES:
-            if valid_source in list_source:
+            if valid_source in list_source_lower:
                 owner = OWNER_ASSIGNMENTS.get(valid_source)
                 logger.info(f"Valid list source: {list_source} -> Owner: {owner}")
                 return True, owner
