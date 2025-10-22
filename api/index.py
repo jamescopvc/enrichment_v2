@@ -2,11 +2,17 @@ import json
 import logging
 import sys
 import os
+import traceback
 
 # Add parent directory to path so we can import enrichment_logic
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from enrichment_logic import EnrichmentService
+try:
+    from enrichment_logic import EnrichmentService
+except Exception as e:
+    print(f"CRITICAL ERROR importing EnrichmentService: {e}")
+    traceback.print_exc()
+    raise
 
 # Configure logging
 logging.basicConfig(
@@ -43,12 +49,15 @@ def handler(request):
             
     except Exception as e:
         logger.error(f"Error in main handler: {e}")
+        logger.error(traceback.format_exc())
+        print(f"HANDLER ERROR: {e}")
+        traceback.print_exc()
         return {
             "statusCode": 500,
             "headers": {"Content-Type": "application/json"},
             "body": json.dumps({
                 "status": "error",
-                "message": "Internal server error"
+                "message": f"Internal server error: {str(e)}"
             })
         }
 
