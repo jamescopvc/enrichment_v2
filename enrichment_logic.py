@@ -100,20 +100,25 @@ class EnrichmentService:
                 else:
                     # Step 2: Try to enrich person if we have ID
                     logger.info(f"      🔓 Email locked, attempting enrichment...")
+                    enriched_email = None
                     if person_id:
                         enriched = self.apollo_client.enrich_person(person_id)
-                        if enriched and enriched.get('email') and enriched.get('email') != 'email_not_unlocked@domain.com':
-                            logger.info(f"      ✅ Enriched email: {enriched.get('email')}")
-                            self._add_founder_to_list(
-                                founders, full_name, first_name, last_name,
-                                founder.get('title', ''), enriched.get('email'),
-                                founder.get('linkedin_url', ''),
-                                company_info, industry, owner
-                            )
-                        else:
-                            logger.warning(f"      ❌ Enrichment failed or no email")
+                        if enriched:
+                            enriched_email = enriched.get('email')
+                            if enriched_email and enriched_email != 'email_not_unlocked@domain.com':
+                                logger.info(f"      ✅ Enriched email: {enriched_email}")
+                            else:
+                                logger.warning(f"      ⚠️  Enrichment returned no valid email")
                     else:
-                        logger.warning(f"      ❌ No person ID to enrich")
+                        logger.warning(f"      ⚠️  No person ID to enrich")
+                    
+                    # Add founder with whatever email we have (could be null)
+                    self._add_founder_to_list(
+                        founders, full_name, first_name, last_name,
+                        founder.get('title', ''), enriched_email or '',
+                        founder.get('linkedin_url', ''),
+                        company_info, industry, owner
+                    )
         
         # Determine status
         if founders and any(f.get('email') for f in founders):
