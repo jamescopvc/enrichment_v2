@@ -21,7 +21,7 @@ class SpecterClient:
         Get company info by domain using Specter enrichment API.
         Returns company data including founder_info array.
         """
-        url = f"{self.base_url}/enrichment/companies"
+        url = f"{self.base_url}/companies"
         payload = {"domain": domain}
         
         logger.info(f"Step 0: Getting company info for domain: {domain}")
@@ -32,23 +32,50 @@ class SpecterClient:
             
             data = response.json()
             
-            # Extract headquarters location
-            hq_locations = data.get('headquarters_locations', [])
-            location = hq_locations[0] if hq_locations else 'Unknown'
+            # Handle case where API returns a list of companies
+            if isinstance(data, list):
+                if not data:
+                    logger.warning("Specter API returned empty list")
+                    return None
+                data = data[0]  # Take first matching company
+                logger.info(f"Specter returned list, using first result")
+            
+            # Debug: log available fields (set to debug level for production)
+            logger.debug(f"Specter company fields: {list(data.keys())}")
+            
+            # Extract location from hq object
+            hq = data.get('hq', {})
+            location = hq.get('city', '') if isinstance(hq, dict) else 'Unknown'
+            if isinstance(hq, dict) and hq.get('region'):
+                location = f"{location}, {hq.get('region')}" if location else hq.get('region')
+            
+            # Extract LinkedIn from socials
+            socials = data.get('socials', {})
+            linkedin_data = socials.get('linkedin', {}) if isinstance(socials, dict) else {}
+            if isinstance(linkedin_data, dict):
+                linkedin_url = linkedin_data.get('url', '')
+                if linkedin_url and not linkedin_url.startswith('http'):
+                    linkedin_url = f"https://{linkedin_url}"
+            else:
+                linkedin_url = str(linkedin_data) if linkedin_data else ''
+            
+            # Extract industries
+            industries = data.get('industries', [])
+            industry = industries[0] if industries else 'Unknown'
             
             company_data = {
-                'id': data.get('company_id'),
-                'name': data.get('company_name', 'Unknown'),
-                'domain': data.get('domain', domain),
+                'id': data.get('id'),
+                'name': data.get('organization_name', 'Unknown'),
+                'domain': data.get('website', domain),
                 'description': data.get('description', ''),
-                'short_description': data.get('short_description', ''),
+                'short_description': data.get('tagline', ''),
                 'keywords': data.get('tags', []),
-                'industry': data.get('primary_industry_sector', 'Unknown'),
-                'location': location,
-                'employee_count': data.get('number_of_employees', 0),
-                'linkedin_url': data.get('linkedin_url', ''),
-                'website_url': data.get('website_url', ''),
-                'founded_year': data.get('year_founded'),
+                'industry': industry,
+                'location': location or 'Unknown',
+                'employee_count': data.get('employee_count', 0),
+                'linkedin_url': linkedin_url,
+                'website_url': data.get('website', ''),
+                'founded_year': data.get('founded_year'),
                 'founder_info': data.get('founder_info', [])
             }
             

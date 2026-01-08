@@ -95,7 +95,7 @@ Return ONLY the JSON, no markdown or explanation."""
         # Get owner info
         owner_name = owner.split('@')[0] if '@' in owner else owner
         calendly_link = CALENDLY_LINKS.get(owner_name, '')
-        sender_name = "James" if owner_name == "james" else "Zi"
+        sender_name = owner_name.capitalize()
         
         logger.info(f"Stage 2: Generating email for {founder_first_name} at {company_name}")
         logger.info(f"  Industry: {industry}, Location: {location_match}, Owner: {sender_name}")
