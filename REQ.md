@@ -34,40 +34,42 @@ Take a company domain and return enriched company data with founder information 
 }
 ```
 
-## Apollo API Endpoints Used
+## Specter API Endpoints Used
 
-### 1. Company Search
-- **Endpoint**: `POST /api/v1/mixed_companies/search`
-- **Purpose**: Find company by domain
-- **Input**: `{"q_organization_domains": "company.com"}`
-- **Output**: Company data with ID
+### 1. Company Enrichment
+- **Endpoint**: `POST /enrichment/companies`
+- **Purpose**: Get company info by domain (includes founder_info)
+- **Input**: `{"domain": "company.com"}`
+- **Output**: Company data with `founder_info` array containing `specter_person_id` for each founder
 
-### 2. People Search  
-- **Endpoint**: `POST /api/v1/mixed_people/search`
-- **Purpose**: Find founders at company
-- **Input**: `{"q_organization_ids": [company_id], "person_seniorities": ["founder"]}`
-- **Output**: List of founder IDs
+### 2. Person Details
+- **Endpoint**: `GET /people/{personId}`
+- **Purpose**: Get full person profile
+- **Input**: Person ID from `founder_info.specter_person_id`
+- **Output**: Person profile (name, title, linkedin, location, etc.)
+- **Note**: Returns 202 Accepted if person requires async enrichment
 
-### 3. Person Enrichment
-- **Endpoint**: `POST /api/v1/people/match`
-- **Purpose**: Get detailed person info including email
-- **Input**: `{"person_id": "founder_id"}`
-- **Output**: Person details with contact info
+### 3. Person Email
+- **Endpoint**: `GET /people/{personId}/email`
+- **Purpose**: Get person's email address
+- **Input**: Person ID, optional `type` query param (professional/personal)
+- **Output**: Email address and type
 
 ## Core Logic
-1. Search for company by domain using Apollo
-2. Get founders/CEOs from that company
-3. Enrich each founder with contact details
-4. Return company + founders data
+1. Enrich company by domain using Specter (includes founder IDs)
+2. For each founder in `founder_info`:
+   - Get full person details via `/people/{personId}`
+   - Get email via `/people/{personId}/email`
+3. Return company + founders data
 
 ## Error Handling
 - If company not found → return "failed" status
 - If no founders found → return company data only
-- If Apollo API fails → return "partial" status
+- If Specter API returns 202 → include founder with null email, status becomes "partial"
 
 ## Simple Implementation
 - Single Python file with 3 functions
-- Use Apollo API directly
+- Use Specter API directly
 - No complex caching or fallbacks
 - Basic error handling
 - Return structured JSON

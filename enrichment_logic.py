@@ -1,6 +1,6 @@
 import logging
 from typing import Dict, List, Any, Optional, Tuple
-from apollo_client import ApolloClient
+from specter_client import SpecterClient
 from openai_client import OpenAIClient
 from config import VALID_LIST_SOURCES, OWNER_ASSIGNMENTS
 
@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 
 class EnrichmentService:
     def __init__(self):
-        self.apollo_client = ApolloClient()
+        self.specter_client = SpecterClient()
         self.openai_client = None  # Initialize lazily
     
     def validate_list_source(self, list_source: str) -> Tuple[bool, Optional[str]]:
@@ -29,7 +29,7 @@ class EnrichmentService:
     
     def enrich_company(self, domain: str, list_source: str) -> Dict[str, Any]:
         """
-        Main enrichment pipeline
+        Main enrichment pipeline using Specter API
         """
         logger.info(f"🚀 Starting enrichment: {domain} ({list_source})")
         
@@ -41,9 +41,9 @@ class EnrichmentService:
         
         logger.info(f"✅ Owner: {owner}")
         
-        # Step 0: Get company info
+        # Step 0: Get company info (includes founder_info)
         logger.info("📍 Step 0: Company enrichment")
-        company_data = self.apollo_client.get_company_by_domain(domain)
+        company_data = self.specter_client.get_company_by_domain(domain)
         if not company_data:
             logger.error("❌ Company not found")
             return {"status": "failed", "message": "Company not found"}
@@ -70,55 +70,68 @@ class EnrichmentService:
             "description": company_data.get('description', '')
         }
         
-        # Step 1: Search for founders
-        logger.info("👥 Step 1: Founder search")
-        founders_data = self.apollo_client.search_founders(domain)
-        logger.info(f"📊 Found {len(founders_data)} potential founders")
+        # Step 1: Get founders from company data (Specter includes founder_info in company response)
+        logger.info("👥 Step 1: Processing founders from company data")
+        founder_info_list = company_data.get('founder_info', [])
+        logger.info(f"📊 Found {len(founder_info_list)} founders in company data")
         
         founders = []
-        if founders_data:
-            for i, founder in enumerate(founders_data, 1):
-                full_name = founder.get('name', 'Unknown')
-                name_parts = full_name.split(' ', 1) if full_name != 'Unknown' else ['Unknown', '']
-                first_name = name_parts[0] if name_parts else 'Unknown'
-                last_name = name_parts[1] if len(name_parts) > 1 else ''
-                email = founder.get('email', '')
-                # Handle both contacts (person_id) and people (id) structures
-                person_id = founder.get('person_id') or founder.get('id')
+        if founder_info_list:
+            for i, founder_basic in enumerate(founder_info_list, 1):
+                person_id = founder_basic.get('specter_person_id')
+                basic_name = founder_basic.get('full_name', 'Unknown')
+                basic_title = founder_basic.get('title', '')
                 
-                logger.info(f"  [{i}] {full_name} ({founder.get('title', '')}) - Email: {email}")
+                logger.info(f"  [{i}] {basic_name} ({basic_title})")
                 
-                # Check if email is unlocked
-                if email and email != 'email_not_unlocked@domain.com':
-                    logger.info(f"      ✅ Email available")
+                if not person_id:
+                    logger.warning(f"      ⚠️  No person ID available, skipping")
+                    continue
+                
+                # Step 2: Get full person details
+                logger.info(f"      🔍 Fetching person details...")
+                person_data = self.specter_client.get_person(person_id)
+                
+                if person_data and person_data.get('status') == 'pending':
+                    logger.warning(f"      ⏳ Person enrichment pending (202)")
+                    # Include with basic data only
                     self._add_founder_to_list(
-                        founders, full_name, first_name, last_name,
-                        founder.get('title', ''), email,
-                        founder.get('linkedin_url', ''),
+                        founders, basic_name, 
+                        basic_name.split()[0] if basic_name != 'Unknown' else 'Unknown',
+                        ' '.join(basic_name.split()[1:]) if basic_name != 'Unknown' else '',
+                        basic_title, '',
+                        '',
                         company_info, industry, owner
                     )
+                    continue
+                
+                if not person_data:
+                    logger.warning(f"      ⚠️  Could not fetch person details")
+                    continue
+                
+                # Extract person info
+                full_name = person_data.get('full_name', basic_name)
+                first_name = person_data.get('first_name', '')
+                last_name = person_data.get('last_name', '')
+                title = person_data.get('title', '') or basic_title
+                linkedin_url = person_data.get('linkedin_url', '')
+                
+                # Step 3: Get email
+                logger.info(f"      📧 Fetching email...")
+                email = self.specter_client.get_person_email(person_id)
+                
+                if email:
+                    logger.info(f"      ✅ Email: {email}")
                 else:
-                    # Step 2: Try to enrich person if we have ID
-                    logger.info(f"      🔓 Email locked, attempting enrichment...")
-                    enriched_email = None
-                    if person_id:
-                        enriched = self.apollo_client.enrich_person(person_id)
-                        if enriched:
-                            enriched_email = enriched.get('email')
-                            if enriched_email and enriched_email != 'email_not_unlocked@domain.com':
-                                logger.info(f"      ✅ Enriched email: {enriched_email}")
-                            else:
-                                logger.warning(f"      ⚠️  Enrichment returned no valid email")
-                    else:
-                        logger.warning(f"      ⚠️  No person ID to enrich")
-                    
-                    # Add founder with whatever email we have (could be null)
-                    self._add_founder_to_list(
-                        founders, full_name, first_name, last_name,
-                        founder.get('title', ''), enriched_email or '',
-                        founder.get('linkedin_url', ''),
-                        company_info, industry, owner
-                    )
+                    logger.warning(f"      ⚠️  No email available")
+                
+                # Add founder to list
+                self._add_founder_to_list(
+                    founders, full_name, first_name, last_name,
+                    title, email or '',
+                    linkedin_url,
+                    company_info, industry, owner
+                )
         
         # Determine status
         if founders and any(f.get('email') for f in founders):
