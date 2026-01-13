@@ -6,9 +6,13 @@ load_dotenv()
 # API Keys
 SPECTER_API_KEY = os.getenv('SPECTER_API_KEY')
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
+APOLLO_API_KEY = os.getenv('APOLLO_API_KEY')
 
 # Specter API Configuration
 SPECTER_BASE_URL = 'https://app.tryspecter.com/api/v1'
+
+# Apollo API Configuration (fallback for email lookup)
+APOLLO_BASE_URL = 'https://api.apollo.io/api/v1'
 
 # Valid list sources
 VALID_LIST_SOURCES = ['james', 'zi', 'jeff']

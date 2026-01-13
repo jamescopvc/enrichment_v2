@@ -1,6 +1,7 @@
 import logging
 from typing import Dict, List, Any, Optional, Tuple
 from specter_client import SpecterClient
+from apollo_client import ApolloClient
 from openai_client import OpenAIClient
 from config import VALID_LIST_SOURCES, OWNER_ASSIGNMENTS
 
@@ -9,6 +10,7 @@ logger = logging.getLogger(__name__)
 class EnrichmentService:
     def __init__(self):
         self.specter_client = SpecterClient()
+        self.apollo_client = None  # Initialize lazily (fallback for email)
         self.openai_client = None  # Initialize lazily
     
     def validate_list_source(self, list_source: str) -> Tuple[bool, Optional[str]]:
@@ -116,14 +118,28 @@ class EnrichmentService:
                 title = person_data.get('title', '') or basic_title
                 linkedin_url = person_data.get('linkedin_url', '')
                 
-                # Step 3: Get email
+                # Step 3: Get email (Specter first, Apollo fallback)
                 logger.info(f"      📧 Fetching email...")
                 email = self.specter_client.get_person_email(person_id)
                 
                 if email:
-                    logger.info(f"      ✅ Email: {email}")
+                    logger.info(f"      ✅ Email (Specter): {email}")
                 else:
-                    logger.warning(f"      ⚠️  No email available")
+                    # Apollo fallback - try by LinkedIn URL first, then by name
+                    logger.info(f"      🔄 Specter failed, trying Apollo fallback...")
+                    if self.apollo_client is None:
+                        self.apollo_client = ApolloClient()
+                    
+                    if linkedin_url:
+                        email = self.apollo_client.get_email_by_linkedin(linkedin_url)
+                    
+                    if not email and first_name and last_name:
+                        email = self.apollo_client.enrich_person(first_name, last_name, company_info['domain'])
+                    
+                    if email:
+                        logger.info(f"      ✅ Email (Apollo): {email}")
+                    else:
+                        logger.warning(f"      ⚠️  No email available from either source")
                 
                 # Add founder to list
                 self._add_founder_to_list(
