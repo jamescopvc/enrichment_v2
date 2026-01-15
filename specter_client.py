@@ -76,11 +76,14 @@ class SpecterClient:
                 'linkedin_url': linkedin_url,
                 'website_url': data.get('website', ''),
                 'founded_year': data.get('founded_year'),
-                'founder_info': data.get('founder_info', [])
+                'founder_info': data.get('founder_info', []),
+                'investors': data.get('investors', []),
+                'investor_count': data.get('investor_count', 0)
             }
             
             logger.info(f"Company data retrieved: {company_data['name']}")
             logger.info(f"Found {len(company_data['founder_info'])} founders in company data")
+            logger.info(f"Found {len(company_data['investors'])} investors in company data")
             return company_data
             
         except requests.exceptions.RequestException as e:

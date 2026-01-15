@@ -3,6 +3,7 @@ from typing import Dict, List, Any, Optional, Tuple
 from specter_client import SpecterClient
 from apollo_client import ApolloClient
 from openai_client import OpenAIClient
+from gemini_client import filter_vc_investors, rank_top_investors, resolve_investor_domain
 from config import VALID_LIST_SOURCES, OWNER_ASSIGNMENTS
 
 logger = logging.getLogger(__name__)
@@ -149,6 +150,21 @@ class EnrichmentService:
                     company_info, industry, owner
                 )
         
+        # Step 4: Get top investors with domains
+        logger.info("💰 Step 4: Processing investors")
+        investors_list = self._get_top_investors(company_data, company_info)
+        logger.info(f"✅ Found {len(investors_list)} top investors")
+        
+        # Flatten investors to individual fields for Zapier compatibility
+        investor_fields = {}
+        for i in range(3):  # Always output 3 investor slots
+            if i < len(investors_list):
+                investor_fields[f"investor_{i+1}_name"] = investors_list[i].get("name", "")
+                investor_fields[f"investor_{i+1}_domain"] = investors_list[i].get("domain", "")
+            else:
+                investor_fields[f"investor_{i+1}_name"] = ""
+                investor_fields[f"investor_{i+1}_domain"] = ""
+        
         # Determine status
         if founders and any(f.get('email') for f in founders):
             status = "enriched"
@@ -160,12 +176,16 @@ class EnrichmentService:
             status = "failed"
             logger.error("❌ Status: failed - No founders found")
         
-        return {
+        result = {
             "status": status,
             "company": company_info,
             "founders": founders,
             "owner": owner
         }
+        # Add flat investor fields to result
+        result.update(investor_fields)
+        
+        return result
     
     def _add_founder_to_list(self, founders_list, full_name, first_name, last_name,
                             title, email, linkedin, company_info, industry, owner):
@@ -190,3 +210,66 @@ class EnrichmentService:
         
         founders_list.append(founder_info)
         logger.info(f"      ➕ Added to list")
+    
+    def _get_top_investors(self, company_data: Dict[str, Any], company_info: Dict[str, Any]) -> List[Dict[str, str]]:
+        """
+        Get top 3 investors with their domains.
+        Pipeline: Extract investors -> Filter VCs/accelerators -> Rank top 3 -> Resolve domains
+        """
+        # Extract raw investors from Specter company data
+        raw_investors = company_data.get('investors', [])
+        
+        if not raw_investors:
+            logger.info("   No investors found in company data")
+            return []
+        
+        logger.info(f"   📋 Raw investors: {len(raw_investors)}")
+        
+        try:
+            # Step 1: Filter to VCs and accelerators only
+            logger.info("   🔍 Filtering to VCs/accelerators...")
+            filtered = filter_vc_investors(raw_investors)
+            included = filtered.get('all_included_names', [])
+            
+            if not included:
+                logger.info("   No VCs/accelerators found after filtering")
+                return []
+            
+            logger.info(f"   ✅ Filtered to {len(included)} VCs/accelerators")
+            
+            # Step 2: Rank top 3
+            logger.info("   🏆 Ranking top 3 investors...")
+            company_context = f"{company_info.get('industry', 'Tech')}, {company_info.get('location', '')}"
+            ranked = rank_top_investors(
+                included,
+                company_name=company_info.get('name'),
+                company_context=company_context
+            )
+            top_names = ranked.get('top_names', [])
+            
+            if not top_names:
+                logger.info("   No investors ranked")
+                return []
+            
+            logger.info(f"   ✅ Top investors: {top_names}")
+            
+            # Step 3: Resolve domains for each
+            logger.info("   🌐 Resolving domains...")
+            investors_with_domains = []
+            
+            for name in top_names:
+                result = resolve_investor_domain(name)
+                domain = result.get('domain')
+                
+                investor_entry = {
+                    "name": name,
+                    "domain": domain
+                }
+                investors_with_domains.append(investor_entry)
+                logger.info(f"      {name} -> {domain or 'NOT FOUND'}")
+            
+            return investors_with_domains
+            
+        except Exception as e:
+            logger.error(f"   ❌ Error in investor enrichment: {e}")
+            return []

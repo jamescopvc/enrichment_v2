@@ -7,6 +7,7 @@ load_dotenv()
 SPECTER_API_KEY = os.getenv('SPECTER_API_KEY')
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 APOLLO_API_KEY = os.getenv('APOLLO_API_KEY')
+GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
 
 # Specter API Configuration
 SPECTER_BASE_URL = 'https://app.tryspecter.com/api/v1'
