@@ -5,26 +5,25 @@ Usage: python test.py [command] [args]
 """
 
 import sys
-import json
 import logging
-from apollo_client import ApolloClient
-from openai_client import OpenAIClient
 from enrichment_logic import EnrichmentService
 
-# Suppress external logging, only show our output
+# Configure logging to show enrichment steps
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(message)s'
+)
+
+# Suppress noisy external loggers
 logging.getLogger('openai').setLevel(logging.WARNING)
 logging.getLogger('requests').setLevel(logging.WARNING)
+logging.getLogger('httpx').setLevel(logging.WARNING)
 
 def print_header(text):
     """Print a section header"""
     print(f"\n{'='*60}")
     print(f"  {text}")
     print(f"{'='*60}")
-
-def print_step(step_num, title):
-    """Print a step header"""
-    print(f"\n[Step {step_num}] {title}")
-    print("-" * 60)
 
 def print_success(msg):
     """Print success message"""
@@ -39,122 +38,63 @@ def print_info(msg):
     print(f"ℹ️  {msg}")
 
 def test_full_pipeline(domain, list_source):
-    """Test complete enrichment pipeline"""
+    """Test complete enrichment pipeline using EnrichmentService (Specter-based)"""
     print_header(f"Testing: {domain} ({list_source})")
+    print_info("Using Specter API (production flow)")
+    print()
     
-    # Step 0: Company Search
-    print_step(0, "Company Search")
-    apollo = ApolloClient()
-    company_data = apollo.get_company_by_domain(domain)
+    # Use the actual EnrichmentService (same as production)
+    service = EnrichmentService()
+    result = service.enrich_company(domain, list_source)
     
-    if not company_data:
-        print_error(f"Company not found for domain: {domain}")
-        return
-    
-    company_name = company_data.get('name')
-    print_success(f"Found company: {company_name}")
-    
-    # Step 1: Vertical Classification
-    print_step(1, "Vertical Classification")
-    openai_client = OpenAIClient()
-    industry = openai_client.classify_industry(company_data)
-    print_success(f"Classified as: {industry}")
-    
-    # Step 2: Founder Search
-    print_step(2, "Founder Search")
-    founders_data = apollo.search_founders(domain)
-    print_success(f"Found {len(founders_data)} potential founders")
-    
-    if not founders_data:
-        print_error("No founders found")
-        return
-    
-    # Step 3: Founder Enrichment
-    print_step(3, "Founder Enrichment & Email Generation")
-    
-    enriched_founders = []
-    for i, founder in enumerate(founders_data, 1):
-        full_name = founder.get('name', 'Unknown')
-        title = founder.get('title', '')
-        email = founder.get('email', '')
-        person_id = founder.get('id')
-        
-        print_info(f"  [{i}] {full_name} - {title}")
-        
-        # Check if email is available
-        if email and email != 'email_not_unlocked@domain.com':
-            print_success(f"     Email available: {email}")
-        else:
-            # Try to enrich
-            if person_id:
-                enriched = apollo.enrich_person(person_id)
-                if enriched and enriched.get('email') and enriched.get('email') != 'email_not_unlocked@domain.com':
-                    email = enriched.get('email')
-                    print_success(f"     Email enriched: {email}")
-                else:
-                    print_error(f"     Email enrichment failed")
-                    continue
-            else:
-                print_error(f"     No person ID to enrich")
-                continue
-        
-        # Build founder info
-        name_parts = full_name.split(' ', 1) if full_name != 'Unknown' else ['Unknown', '']
-        first_name = name_parts[0] if name_parts else 'Unknown'
-        last_name = name_parts[1] if len(name_parts) > 1 else ''
-        
-        founder_info = {
-            "name": full_name,
-            "first_name": first_name,
-            "last_name": last_name,
-            "title": title,
-            "email": email,
-            "linkedin": founder.get('linkedin_url', '')
-        }
-        
-        # Generate email
-        company_info = {
-            "name": company_name,
-            "domain": domain,
-            "industry": industry,
-            "location": company_data.get('location', 'Unknown'),
-            "employee_count": company_data.get('employee_count', 0),
-            "linkedin": company_data.get('linkedin_url', ''),
-            "description": company_data.get('description', '')
-        }
-        
-        # Determine owner from list_source
-        owner_name = list_source.split('-')[0]
-        owner = f"{owner_name}@scopvc.com"
-        
-        email_content = openai_client.generate_email(
-            company_info, founder_info, industry, owner
-        )
-        founder_info['generated_email'] = email_content
-        
-        enriched_founders.append(founder_info)
-    
-    # Final output
+    # Display results
     print_header("RESULTS")
     
-    if enriched_founders:
-        result_status = "enriched"
-        print_success(f"Status: {result_status.upper()}")
+    status = result.get('status', 'unknown')
+    if status == 'enriched':
+        print_success(f"Status: {status.upper()}")
+    elif status == 'partial':
+        print_info(f"Status: {status.upper()}")
     else:
-        result_status = "failed"
-        print_error(f"Status: {result_status.upper()}")
+        print_error(f"Status: {status.upper()}")
     
-    print_info(f"Company: {company_name}")
-    print_info(f"Vertical: {industry}")
-    print_info(f"Founders found: {len(enriched_founders)}")
+    if result.get('message'):
+        print_info(f"Message: {result['message']}")
     
-    if enriched_founders:
+    company = result.get('company', {})
+    if company:
+        print_info(f"Company: {company.get('name', 'Unknown')}")
+        print_info(f"Industry: {company.get('industry', 'Unknown')}")
+        print_info(f"Location: {company.get('location', 'Unknown')}")
+    
+    print_info(f"Owner: {result.get('owner', 'Unknown')}")
+    
+    founders = result.get('founders', [])
+    print_info(f"Founders found: {len(founders)}")
+    
+    if founders:
         print_info("\nFounders:")
-        for i, founder in enumerate(enriched_founders, 1):
-            print(f"  [{i}] {founder['first_name']} {founder['last_name']}")
-            print(f"      Title: {founder['title']}")
-            print(f"      Email: {founder['email']}")
-            print(f"      Email preview: {founder['generated_email'][:80]}...")
+        for i, founder in enumerate(founders, 1):
+            print(f"  [{i}] {founder.get('first_name', '')} {founder.get('last_name', '')}")
+            print(f"      Title: {founder.get('title', 'N/A')}")
+            print(f"      Email: {founder.get('email', 'N/A')}")
+            print(f"      LinkedIn: {founder.get('linkedin', 'N/A')}")
+            if founder.get('generated_email'):
+                preview = founder['generated_email'][:80].replace('\n', ' ')
+                print(f"      Email preview: {preview}...")
+    
+    # Show investors
+    investors = []
+    for i in range(1, 4):
+        name = result.get(f'investor_{i}_name', '')
+        domain = result.get(f'investor_{i}_domain', '')
+        if name:
+            investors.append({'name': name, 'domain': domain})
+    
+    if investors:
+        print_info(f"\nTop Investors ({len(investors)}):")
+        for i, inv in enumerate(investors, 1):
+            print(f"  [{i}] {inv['name']} -> {inv['domain'] or 'no domain'}")
     
     print()
 
