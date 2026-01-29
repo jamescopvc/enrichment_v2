@@ -76,8 +76,8 @@ class SpecterClient:
                 'linkedin_url': linkedin_url,
                 'website_url': data.get('website', ''),
                 'founded_year': data.get('founded_year'),
-                'founder_info': data.get('founder_info', []),
-                'investors': data.get('investors', []),
+                'founder_info': data.get('founder_info') or [],
+                'investors': data.get('investors') or [],
                 'investor_count': data.get('investor_count', 0)
             }
             
@@ -135,6 +135,73 @@ class SpecterClient:
             logger.error(f"Specter API error for person lookup: {e}")
             return None
     
+    def lookup_person_by_linkedin(self, linkedin_url: str) -> Optional[Dict[str, Any]]:
+        """
+        Create/lookup a person in Specter by LinkedIn URL.
+        Returns person data including person_id for email lookup.
+        
+        Args:
+            linkedin_url: The person's LinkedIn profile URL
+            
+        Returns:
+            Dict with person_id, full_name, first_name, last_name, title, linkedin_url
+            or None if lookup failed
+        """
+        if not linkedin_url:
+            return None
+            
+        url = f"{self.base_url}/people"
+        payload = {"linkedin_url": linkedin_url}
+        
+        logger.info(f"Specter: Looking up person by LinkedIn: {linkedin_url}")
+        
+        try:
+            response = requests.post(url, headers=self.headers, json=payload)
+            
+            # Handle 202 Accepted (async enrichment in progress)
+            if response.status_code == 202:
+                data = response.json() if response.text else {}
+                person_id = data.get('person_id')
+                if person_id:
+                    logger.info(f"Specter: Person enrichment pending, got ID: {person_id}")
+                    return {'person_id': person_id, 'status': 'pending'}
+                logger.warning(f"Specter: Person enrichment pending (202), no ID returned")
+                return None
+            
+            response.raise_for_status()
+            
+            # Handle empty response
+            if not response.text or not response.text.strip():
+                logger.warning(f"Specter: Empty response for LinkedIn lookup")
+                return None
+            
+            data = response.json()
+            
+            person_id = data.get('person_id')
+            if not person_id:
+                logger.warning(f"Specter: No person_id in response")
+                return None
+            
+            person_data = {
+                'person_id': person_id,
+                'first_name': data.get('first_name', ''),
+                'last_name': data.get('last_name', ''),
+                'full_name': data.get('full_name', ''),
+                'title': data.get('current_position_title', ''),
+                'linkedin_url': data.get('linkedin_url', linkedin_url),
+                'status': 'found'
+            }
+            
+            logger.info(f"Specter: Found person {person_data['full_name']} (ID: {person_id})")
+            return person_data
+            
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Specter API error for LinkedIn lookup: {e}")
+            return None
+        except (ValueError, KeyError) as e:
+            logger.warning(f"Specter: Invalid response for LinkedIn lookup: {e}")
+            return None
+    
     def get_person_email(self, person_id: str, email_type: str = "professional") -> Optional[str]:
         """
         Get person's email by Specter person ID.
@@ -166,6 +233,11 @@ class SpecterClient:
             
             response.raise_for_status()
             
+            # Handle empty response body
+            if not response.text or not response.text.strip():
+                logger.warning(f"Empty response body for email lookup: {person_id}")
+                return None
+            
             data = response.json()
             email = data.get('email')
             returned_type = data.get('type', email_type)
@@ -179,6 +251,9 @@ class SpecterClient:
             
         except requests.exceptions.RequestException as e:
             logger.error(f"Specter API error for email lookup: {e}")
+            return None
+        except (ValueError, KeyError) as e:
+            logger.warning(f"Invalid response from Specter email API for {person_id}: {e}")
             return None
     
     def get_founders(self, domain: str) -> List[Dict[str, Any]]:

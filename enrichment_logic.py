@@ -47,31 +47,43 @@ class EnrichmentService:
         # Step 0: Get company info (includes founder_info)
         logger.info("📍 Step 0: Company enrichment")
         company_data = self.specter_client.get_company_by_domain(domain)
-        if not company_data:
-            logger.error("❌ Company not found")
-            return {"status": "failed", "message": "Company not found"}
-        
-        logger.info(f"✅ Company: {company_data['name']}")
         
         # Initialize OpenAI client
         if self.openai_client is None:
             self.openai_client = OpenAIClient()
         
-        # Classify industry
-        logger.info("🤖 Analyzing vertical...")
-        industry = self.openai_client.classify_industry(company_data)
-        logger.info(f"✅ Vertical: {industry}")
-        
-        # Prepare company info
-        company_info = {
-            "name": company_data.get('name', 'Unknown'),
-            "domain": domain,
-            "industry": industry,
-            "location": company_data.get('location', 'Unknown'),
-            "employee_count": company_data.get('employee_count', 0),
-            "linkedin": company_data.get('linkedin_url', ''),
-            "description": company_data.get('description', '')
-        }
+        if company_data:
+            logger.info(f"✅ Company: {company_data['name']}")
+            
+            # Classify industry
+            logger.info("🤖 Analyzing vertical...")
+            industry = self.openai_client.classify_industry(company_data)
+            logger.info(f"✅ Vertical: {industry}")
+            
+            # Prepare company info
+            company_info = {
+                "name": company_data.get('name', 'Unknown'),
+                "domain": domain,
+                "industry": industry,
+                "location": company_data.get('location', 'Unknown'),
+                "employee_count": company_data.get('employee_count', 0),
+                "linkedin": company_data.get('linkedin_url', ''),
+                "description": company_data.get('description', '')
+            }
+        else:
+            # Specter didn't find company - use basic info and Apollo fallback for founders
+            logger.warning("⚠️  Specter didn't find company, using Apollo fallback...")
+            company_data = {}  # Empty so founder_info_list will be empty, triggering Apollo fallback
+            industry = "Unknown"
+            company_info = {
+                "name": domain.split('.')[0].title(),  # Best guess from domain
+                "domain": domain,
+                "industry": industry,
+                "location": "Unknown",
+                "employee_count": 0,
+                "linkedin": "",
+                "description": ""
+            }
         
         # Step 1: Get founders from company data (Specter includes founder_info in company response)
         logger.info("👥 Step 1: Processing founders from company data")
@@ -149,6 +161,54 @@ class EnrichmentService:
                     linkedin_url,
                     company_info, industry, owner
                 )
+        
+        # Apollo fallback: Search for founders if Specter has none
+        if not founders:
+            logger.info("🔄 No founders from Specter, trying Apollo fallback...")
+            if self.apollo_client is None:
+                self.apollo_client = ApolloClient()
+            
+            apollo_founders = self.apollo_client.search_founders(domain)
+            
+            if apollo_founders:
+                logger.info(f"✅ Apollo found {len(apollo_founders)} founders")
+                for i, af in enumerate(apollo_founders, 1):
+                    # Use Apollo data (already enriched by ID in search_founders)
+                    full_name = af.get('full_name', 'Unknown')
+                    first_name = af.get('first_name', '')
+                    last_name = af.get('last_name', '')
+                    title = af.get('title', '')
+                    email = af.get('email', '')
+                    linkedin_url = af.get('linkedin_url', '')
+                    
+                    logger.info(f"  [{i}] {full_name} ({title})")
+                    
+                    if email:
+                        logger.info(f"      ✅ Email (Apollo): {email}")
+                    
+                    # Specter fallback: Only if Apollo has no email but has LinkedIn
+                    if not email and linkedin_url:
+                        logger.info(f"      🔄 No Apollo email, trying Specter via LinkedIn...")
+                        specter_person = self.specter_client.lookup_person_by_linkedin(linkedin_url)
+                        
+                        if specter_person and specter_person.get('person_id'):
+                            person_id = specter_person['person_id']
+                            specter_email = self.specter_client.get_person_email(person_id)
+                            if specter_email:
+                                email = specter_email
+                                logger.info(f"      ✅ Email (Specter fallback): {email}")
+                    
+                    if not email:
+                        logger.warning(f"      ⚠️  No email available")
+                    
+                    self._add_founder_to_list(
+                        founders, full_name, first_name, last_name,
+                        title, email or '',
+                        linkedin_url,
+                        company_info, industry, owner
+                    )
+            else:
+                logger.warning("❌ Apollo also found no founders")
         
         # Step 4: Get top investors with domains
         logger.info("💰 Step 4: Processing investors")
